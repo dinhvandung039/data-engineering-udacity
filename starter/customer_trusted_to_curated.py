@@ -4,15 +4,8 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
-from awsglue import DynamicFrame
-
-
-def sparkSqlQuery(glueContext, query, mapping, transformation_ctx) -> DynamicFrame:
-    for alias, frame in mapping.items():
-        frame.toDF().createOrReplaceTempView(alias)
-    result = spark.sql(query)
-    return DynamicFrame.fromDF(result, glueContext, transformation_ctx)
-
+from awsglue.dynamicframe import DynamicFrame
+import re
 
 args = getResolvedOptions(sys.argv, ["JOB_NAME"])
 sc = SparkContext()
@@ -21,63 +14,44 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# Script generated for node Accelerometer Landing Zone
-AccelerometerLandingZone_node1 = glueContext.create_dynamic_frame.from_options(
+# Script generated for node Customer Landing
+CustomerLanding_node1 = glueContext.create_dynamic_frame.from_options(
     format_options={"multiline": False},
     connection_type="s3",
     format="json",
     connection_options={
-        "paths": ["s3://human-analytics/accelerometer_landing/"],
+        "paths": ["s3://human-analytics/customer_landing/"],
         "recurse": True,
     },
-    transformation_ctx="AccelerometerLandingZone_node1",
+    transformation_ctx="CustomerLanding_node1",
 )
 
-# Script generated for node Customer Trusted Zone
-CustomerTrustedZone_node1679501265208 = glueContext.create_dynamic_frame.from_catalog(
-    database="stedi",
-    table_name="customer_trusted",
-    transformation_ctx="CustomerTrustedZone_node1679501265208",
+# Script generated for node Share With Research
+ShareWithResearch_node2 = Filter.apply(
+    frame=CustomerLanding_node1,
+    f=lambda row: (not (row["shareWithResearchAsOfDate"] == 0)),
+    transformation_ctx="ShareWithResearch_node2",
 )
 
-# Script generated for node ApplyJoinMapping
-ApplyJoinMapping_node2 = Join.apply(
-    frame1=AccelerometerLandingZone_node1,
-    frame2=CustomerTrustedZone_node1679501265208,
-    keys1=["user"],
-    keys2=["email"],
-    transformation_ctx="ApplyJoinMapping_node2",
-)
+# Script generated for node Drop Duplicates
+DropDuplicates_node3 = ShareWithResearch_node2.toDF().dropDuplicates(["email"])
 
-# Script generated for node SQL Query
-SqlQuery1531 = """
-select * from myDataSource 
-where shareWithResearchAsOfDate == 0
-"""
-SQLQuery_node1679541197827 = sparkSqlQuery(
+# Script generated for node Customer Trusted
+DropDuplicates_node3_dynamic_frame = DynamicFrame.fromDF(
+    DropDuplicates_node3,
     glueContext,
-    query=SqlQuery1531,
-    mapping={"myDataSource": ApplyJoinMapping_node2},
-    transformation_ctx="SQLQuery_node1679541197827",
+    "DropDuplicates_node3_dynamic_frame"
 )
 
-# Script generated for node Drop Fields
-DropFields_node1679501393679 = DropFields.apply(
-    frame=SQLQuery_node1679541197827,
-    paths=["user", "timeStamp", "x", "y", "z"],
-    transformation_ctx="DropFields_node1679501393679",
-)
-
-# Script generated for node Customer Curated Zone
-CustomerCuratedZone_node3 = glueContext.write_dynamic_frame.from_options(
-    frame=DropFields_node1679501393679,
+CustomerTrusted_node4 = glueContext.write_dynamic_frame.from_options(
+    frame=DropDuplicates_node3_dynamic_frame,
     connection_type="s3",
     format="json",
     connection_options={
         "path": "s3://human-analytics/customer_curated/",
         "partitionKeys": [],
     },
-    transformation_ctx="CustomerCuratedZone_node3",
+    transformation_ctx="CustomerTrusted_node4",
 )
 
 job.commit()
