@@ -1,4 +1,4 @@
-# mig's AF ELT Data Pipeline for P4
+# ELT Data Pipeline for P4
 
 This README outlines the ELT data pipeline developed for the final project (p4), detailing the primary operators, their roles, and the associated DAG calls.
 
